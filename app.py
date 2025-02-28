@@ -6,16 +6,17 @@ import os
 app = Flask(__name__)
 
 # Set Google Cloud credentials and bucket name
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "key.json"
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/etc/secrets/key.json"
 BUCKET_NAME = "wildlens_upload"
 
 def upload_to_gcloud(file, filename):
     """Uploads a file to Google Cloud Storage."""
-    client = storage.Client()
+    client = storage.Client.from_service_account_json("/etc/secrets/key.json")
     bucket = client.bucket(BUCKET_NAME)
     blob = bucket.blob(filename)
     blob.upload_from_file(file)
     return f"https://storage.googleapis.com/{BUCKET_NAME}/{filename}"
+
 
 @app.route("/", methods=["GET", "POST"])
 def upload_images():
@@ -40,4 +41,4 @@ def upload_images():
     return render_template("index.html")
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000)
