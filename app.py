@@ -1,41 +1,43 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, request, render_template
+from google.cloud import storage
 import os
 
+# Initialize Flask app
 app = Flask(__name__)
 
+# Set Google Cloud credentials and bucket name
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "key.json"
+BUCKET_NAME = "wildlens_upload"
 
-# Configure the upload folder
-UPLOAD_FOLDER = 'uploads'
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)  # Create the folder if it doesn't exist
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+def upload_to_gcloud(file, filename):
+    """Uploads a file to Google Cloud Storage."""
+    client = storage.Client()
+    bucket = client.bucket(BUCKET_NAME)
+    blob = bucket.blob(filename)
+    blob.upload_from_file(file)
+    return f"https://storage.googleapis.com/{BUCKET_NAME}/{filename}"
 
-# Allowed extensions for image files
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
+@app.route("/", methods=["GET", "POST"])
+def upload_images():
+    if request.method == "POST":
+        if "images" not in request.files:
+            return "No file part", 400
 
-def allowed_file(filename):
-    """Check if the file extension is allowed."""
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+        files = request.files.getlist("images")
+        if not files:
+            return "No files selected", 400
 
-@app.route('/')
-def index():
-    """Render the upload form."""
-    return render_template('index.html')
+        uploaded_files = []
+        for file in files:
+            if file.filename:
+                public_url = upload_to_gcloud(file, file.filename)
+                uploaded_files.append(public_url)
 
-@app.route('/upload', methods=['POST'])
-def upload_file():
-    """Handle the image upload."""
-    if 'file' not in request.files:
-        return 'No file part in the request'
-    file = request.files['file']
-    if file.filename == '':
-        return 'No file selected'
-    if file and allowed_file(file.filename):
-        filename = file.filename
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(file_path)  # Save the file to the uploads folder
-        return f'File uploaded successfully! File saved at: {file_path}'
-    else:
-        return 'Invalid file type. Please upload an image.'
+        return f"Files uploaded successfully: <br>" + "<br>".join(
+            [f"<a href='{url}'>{url}</a>" for url in uploaded_files]
+        )
 
-if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=True)
+    return render_template("index.html")
+
+if __name__ == "__main__":
+    app.run(debug=True)
