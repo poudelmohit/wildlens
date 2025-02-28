@@ -1,15 +1,239 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Upload Image</title>
+    <title>Wildlife Image Uploader</title>
+
+    <style>
+        /* General Reset */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Arial', sans-serif;
+        }
+
+        body {
+            background-color: #f7f9fc;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: #ffffff;
+            border-radius: 15px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .header img {
+            width: 40px;
+            height: 40px;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            color: #333;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        label {
+            font-size: 14px;
+            color: #555;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px;
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            background: #f7f9fc;
+            color: #888;
+            cursor: pointer;
+            text-align: left;
+        }
+
+        .file-label:hover {
+            background: #eef2f6;
+        }
+
+        .file-label.selected {
+            color: #333;
+            font-weight: bold;
+        }
+
+        textarea, input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            background: #f7f9fc;
+            font-size: 14px;
+            color: #333;
+        }
+
+        textarea:focus, input[type="text"]:focus {
+            outline: none;
+            border-color: #6c63ff;
+        }
+
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 10px;
+            background-color: #6c63ff;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background-color: #5149c2;
+        }
+    </style>
+
+    <!-- Leaflet.js CSS and JavaScript -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
-    <h1>Upload an Image</h1>
-    <form method="POST" action="/upload" enctype="multipart/form-data">
-        <input type="file" name="file" accept="image/*">
-        <button type="submit">Upload</button>
-    </form>
+    <div class="container">
+        <div class="header">
+            <h1>Help Us Record, Save, and Celebrate Wildlife</h1>
+        </div>
+        <form action="/" method="POST" enctype="multipart/form-data">
+            <div class="input-group">
+                <label for="image">Upload a picture of roadkill or wildlife</label>
+                <label for="image" class="file-label" id="file-label">
+                    Drag and drop file here or browse files</span>
+                </label>
+                <input type="file" name="images" id="image" accept="image/*" multiple required>
+                <div id="file-list"></div> <!-- New element for displaying file names -->
+            </div>
+            <div class="input-group">
+                <label for="details">Uploaded By (Optional):</label>
+                <input type="text" name="uploader" id="uploader_name" placeholder="E.g., John Doe ">
+            </div>
+            <div class="input-group">
+                <label for="location">Enter the location where the picture was taken</label>
+                <input type="text" name="location" id="location" placeholder="E.g., 100 West Green Drive, Athens, OH ">
+            </div>
+            <div class="input-group">
+                <label for="location">OR, click on the map to select the location where picture was taken:</label>
+            </div>
+            <div id="map" style="height: 400px; width: 100%; border: 1px solid #ccc; margin-top: 10px;"></div>
+       
+            
+            <button type="submit">Submit</button>
+        </form>
+    </div>
+
+    <script>
+        // File Input Handling Script
+        const fileInput = document.getElementById('image');
+        const fileLabel = document.getElementById('file-label');
+        const fileList = document.getElementById('file-list');
+    
+        fileInput.addEventListener('change', () => {
+            const files = Array.from(fileInput.files);
+            if (files.length > 0) {
+                fileLabel.classList.add('selected');
+                fileLabel.innerHTML = `${files.length} file(s) selected`;
+                fileList.innerHTML = files
+                    .map((file, index) => `<p>${index + 1}. ${file.name}</p>`)
+                    .join('');
+            } else {
+                fileLabel.classList.remove('selected');
+                fileLabel.innerHTML = "Drag and drop files here or browse files";
+                fileList.innerHTML = "";
+            }
+        });
+    
+        // Map Initialization Script with Geolocation
+        document.addEventListener('DOMContentLoaded', () => {
+            // Default location (if geolocation fails)
+            const defaultLocation = [39.324383, -82.101803]; // Ohio University
+            const map = L.map('map').setView(defaultLocation, 13);
+    
+            // Add a tile layer (OpenStreetMap)
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19,
+            }).addTo(map);
+    
+            // Try to use the browser's geolocation API
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const { latitude, longitude } = position.coords;
+                        const userLocation = [latitude, longitude];
+                        map.setView(userLocation, 13);
+    
+                        // Add a marker for the user's current location
+                        L.marker(userLocation)
+                            .addTo(map)
+                            .bindPopup("You are here!")
+                            .openPopup();
+                    },
+                    (error) => {
+                        console.warn(`Geolocation failed: ${error.message}`);
+                        alert("Geolocation access denied. Defaulting to Kathmandu.");
+                    }
+                );
+            } else {
+                alert("Geolocation is not supported by your browser.");
+            }
+    
+            // Add a marker and click handler
+            let marker = null;
+            map.on('click', function (e) {
+                const { lat, lng } = e.latlng;
+    
+                // Update the marker
+                if (marker) {
+                    marker.setLatLng(e.latlng);
+                } else {
+                    marker = L.marker(e.latlng).addTo(map);
+                }
+    
+                // Update the location input
+                const locationInput = document.getElementById('location');
+                locationInput.value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+            });
+        });
+    </script>
+    
 </body>
 </html>
